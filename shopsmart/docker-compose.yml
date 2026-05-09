@@ -1,0 +1,27 @@
+version: '3.9'
+
+services:
+  shopsmart:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopsmart-app
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+
+  # Development service (hot reload)
+  shopsmart-dev:
+    image: node:20-alpine
+    container_name: shopsmart-dev
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
+    profiles:
+      - dev
