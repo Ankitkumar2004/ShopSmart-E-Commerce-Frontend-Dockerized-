@@ -1,0 +1,56 @@
+name: CI/CD Pipeline to Docker Hub and AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./shopsmart
+          file: ./shopsmart/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/shopsmart-frontend:latest
+
+  deploy-to-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Deploying to EC2..."
+            
+            # Pull the latest image
+            docker pull ${{ secrets.DOCKER_USERNAME }}/shopsmart-frontend:latest
+            
+            # Stop and remove the existing container if it exists
+            docker stop shopsmart-app || true
+            docker rm shopsmart-app || true
+            
+            # Run the new container
+            # Assuming you want to expose port 80 to the host's port 8081 as per docker-compose.yml
+            docker run -d --name shopsmart-app -p 8081:80 -e NODE_ENV=production --restart unless-stopped ${{ secrets.DOCKER_USERNAME }}/shopsmart-frontend:latest
+            
+            echo "Deployment completed successfully!"
